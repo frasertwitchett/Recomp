@@ -13,13 +13,25 @@
 <style>
   html, body {
     margin: 0; padding: 0; background: #0F0F0F;
-    overscroll-behavior: none;
+    height: 100%;
+    /* keep the page itself anchored (no whole-page rubber-band) */
+    overscroll-behavior-y: none;
     -webkit-user-select: none; user-select: none;
     -webkit-touch-callout: none;
   }
+  body { position: fixed; inset: 0; }
+  /* hide scrollbars (still scrolls) */
   html { -ms-overflow-style: none; scrollbar-width: none; }
   ::-webkit-scrollbar { width: 0; height: 0; display: none; }
-  #root { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); overscroll-behavior: none; }
+  /* #root is the scroll container: bouncy momentum scroll, but contained */
+  #root {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;   /* iOS momentum + bounce */
+    overscroll-behavior-y: contain;       /* bounce within, not the page */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
   * { -webkit-tap-highlight-color: transparent; }
   input, textarea, select { -webkit-user-select: text; user-select: text; }
 </style>
@@ -88,7 +100,7 @@ react/cjs/react-jsx-runtime.production.min.js:
 (function(){
   if (!("serviceWorker" in navigator)) return;
   var swCode = `
-const CACHE = "recomp-auto-v1";
+const CACHE = "recomp-auto-v2";
 self.addEventListener("install", function(e){ self.skipWaiting(); });
 self.addEventListener("activate", function(e){
   e.waitUntil(
@@ -101,7 +113,6 @@ self.addEventListener("fetch", function(e){
   if (e.request.method !== "GET") return;
   var isNav = e.request.mode === "navigate" || (e.request.destination === "document");
   if (isNav) {
-    // network-first: always try to get the freshest page, fall back to cache offline
     e.respondWith(
       fetch(e.request).then(function(res){
         var copy = res.clone();
@@ -113,7 +124,6 @@ self.addEventListener("fetch", function(e){
     );
     return;
   }
-  // cache-first for everything else
   e.respondWith(
     caches.open(CACHE).then(function(c){
       return c.match(e.request).then(function(hit){
@@ -124,20 +134,14 @@ self.addEventListener("fetch", function(e){
 });
 `;
   var reloaded = false;
-  // when a new service worker takes control, reload once to show the update
   navigator.serviceWorker.addEventListener("controllerchange", function(){
-    if (reloaded) return;
-    reloaded = true;
-    window.location.reload();
+    if (reloaded) return; reloaded = true; window.location.reload();
   });
   try {
     var blob = new Blob([swCode], { type: "text/javascript" });
     var url = URL.createObjectURL(blob);
     window.addEventListener("load", function(){
-      navigator.serviceWorker.register(url).then(function(reg){
-        // check for updates each launch
-        reg.update();
-      }).catch(function(){});
+      navigator.serviceWorker.register(url).then(function(reg){ reg.update(); }).catch(function(){});
     });
   } catch (e) {}
 })();
